@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Velox | Premium Bike Rentals & Mobility</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(107, 114, 128, 0.8);
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        
+        /* Leaflet Map Custom Style */
+        .leaflet-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body x-data="bikeApp()" :class="{ 'dark bg-slate-900 text-slate-100': darkMode, 'bg-slate-50 text-slate-800': !darkMode }" class="font-sans antialiased selection:bg-brand-500 selection:text-white min-h-screen flex flex-col justify-between">
+
+    <!-- Notification Toast System -->
+    <div class="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        <template x-for="(toast, index) in toasts" :key="index">
+            <div x-show="toast.show" 
+                 x-transition:enter="transition ease-out duration-300 transform"
+                 x-transition:enter-start="opacity-0 translate-y-2 scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave="transition ease-in duration-200 transform"
+                 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-2 scale-95"
+                 class="pointer-events-auto p-4 rounded-xl shadow-lg border flex items-center justify-between gap-3"
+                 :class="{
+                    'bg-emerald-600 text-white border-emerald-500': toast.type === 'success',
+                    'bg-amber-600 text-white border-amber-500': toast.type === 'info',
+                    'bg-rose-600 text-white border-rose-500': toast.type === 'error'
+                 }">
+                <div class="flex items-center gap-2">
+                    <i :data-lucide="toast.type === 'success' ? 'check-circle' : 'info'" class="w-5 h-5"></i>
+                    <p class="text-sm font-medium" x-text="toast.message"></p>
+                </div>
+                <button @click="toast.show = false" class="opacity-80 hover:opacity-100">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 border-b transition-colors duration-200"
+            :class="darkMode ? 'bg-slate-900/90 border-slate-800 backdrop-blur-md' : 'bg-white/90 border-slate-200 backdrop-blur-md'">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="#" class="flex items-center gap-2.5 group">
+                <div class="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/30 group-hover:scale-105 transition-transform">
+                    <i data-lucide="bike" class="w-6 h-6"></i>
+                </div>
+                <span class="text-2xl font-black tracking-tight bg-gradient-to-r from-brand-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent">VELOX</span>
+            </a>
+
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex items-center gap-8 text-sm font-semibold">
+                <a href="#fleet" class="hover:text-brand-500 transition-colors">Fleet Catalog</a>
+                <a href="#locations" class="hover:text-brand-500 transition-colors">Locations</a>
+                <a href="#reviews" class="hover:text-brand-500 transition-colors">Reviews</a>
+                <a href="#faq" class="hover:text-brand-500 transition-colors">How it Works</a>
+            </nav>
+
+            <!-- Quick Actions -->
+            <div class="flex items-center gap-3">
+                <!-- Theme Toggle -->
+                <button @click="toggleTheme()" class="p-2.5 rounded-xl border transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                        :class="darkMode ? 'border-slate-700 text-amber-400' : 'border-slate-200 text-slate-600'">
+                    <i :data-lucide="darkMode ? 'sun' : 'moon'" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Active Bookings / Cart Drawer Button -->
+                <button @click="cartOpen = true" class="relative p-2.5 rounded-xl bg-brand-500 text-white font-medium hover:bg-brand-600 shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2">
+                    <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                    <span class="hidden sm:inline text-sm font-semibold">My Rentals</span>
+                    <span x-show="cart.length > 0" 
+                          x-text="cart.length" 
+                          class="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse">
+                    </span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow">
+        <!-- Hero Section with Booking Search Bar -->
+        <section class="relative pt-12 pb-20 md:pt-20 md:pb-32 overflow-hidden">
+            <!-- Ambient Background Shapes -->
+            <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div class="text-center max-w-3xl mx-auto mb-10">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-brand-500/10 text-brand-600 dark:text-brand-400 mb-4 border border-brand-500/20">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Sustainable Urban Mobility
+                    </span>
+                    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
+                        Explore the City on <span class="bg-gradient-to-r from-brand-500 to-teal-500 bg-clip-text text-transparent">Two Wheels</span>
+                    </h1>
+                    <p class="text-lg text-slate-600 dark:text-slate-400">
+                        Rent premium e-bikes, road bikes, mountain bikes, city cruisers and kids bicycles in seconds. No hidden fees, instant unlock, and full insurance included.
+                    </p>
+                </div>
+
+                <!-- Hero Search Widget -->
+                <div class="max-w-5xl mx-auto glass-panel p-4 sm:p-6 rounded-3xl shadow-2xl border"
+                     :class="darkMode ? 'border-slate-700/60' : 'border-slate-200/80'">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Location Dropdown -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-brand-500"></i> Pickup Hub
+                            </label>
+                            <select x-model="searchFilters.location" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-3 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="all">All Locations</option>
+                                <template x-for="loc in locations" :key="loc.id">
+                                    <option :value="loc.name" x-text="loc.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <!-- Start Date -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-500"></i> Start Date
+                            </label>
+                            <input type="datetime-local" x-model="searchFilters.startDate" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+
+                        <!-- End Date -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-500"></i> Return Date
+                            </label>
+                            <input type="datetime-local" x-model="searchFilters.endDate" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+
+                        <!-- Category Filter -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="layers" class="w-3.5 h-3.5 text-brand-500"></i> Bike Category
+                            </label>
+                            <select x-model="searchFilters.category" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-3 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="All">All Categories</option>
+                                <option value="Electric">Electric / E-Bike</option>
+                                <option value="Mountain">Mountain Bike</option>
+                                <option value="Road">Road Performance</option>
+                                <option value="City">City / Urban</option>
+                                <option value="Kids">Kids / Junior</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Filter Trigger & Quick Action -->
+                    <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                        <div class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full text-xs font-semibold">
+                            <span class="text-slate-400">Popular Tag:</span>
+                            <button @click="searchFilters.category = 'Electric'" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-500/10 hover:text-brand-500 transition">⚡ Electric Range</button>
+                            <button @click="searchFilters.category = 'Mountain'" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-500/10 hover:text-brand-500 transition">🌲 Mountain Trails</button>
+                            <button @click="searchFilters.category = 'Kids'" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-500/10 hover:text-brand-500 transition">🧸 Kids & Family</button>
+                        </div>
+                        <button @click="scrollToCatalog()" class="w-full sm:w-auto px-8 py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="search" class="w-4 h-4"></i> Find Available Bikes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Fleet Catalog Section -->
+        <section id="fleet" class="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+                <div>
+                    <h2 class="text-3xl font-black tracking-tight mb-2">Our Premium Fleet</h2>
+                    <p class="text-slate-600 dark:text-slate-400 text-sm">Choose from high-performance city, mountain, electric, road, and junior bicycles, meticulously maintained daily.</p>
+                </div>
+
+                <!-- Category Tabs & Quick Toggles -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <!-- Advanced Filters Toggle -->
+                    <div class="flex items-center gap-2 bg-slate-200/60 dark:bg-slate-800/80 px-4 py-2 rounded-2xl text-xs font-semibold">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" x-model="searchFilters.onlyAvailable" class="rounded text-brand-500 focus:ring-brand-500">
+                            <span>Only Available Now</span>
+                        </label>
+                    </div>
+
+                    <!-- Category Tabs -->
+                    <div class="flex items-center gap-1.5 p-1.5 bg-slate-200/60 dark:bg-slate-800/80 rounded-2xl overflow-x-auto">
+                        <template x-for="cat in ['All', 'City', 'Mountain', 'Electric', 'Road', 'Kids']" :key="cat">
+                            <button @click="searchFilters.category = cat" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+                                    :class="searchFilters.category === cat ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
+                                <span x-text="cat === 'Electric' ? 'E-Bike' : cat"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bike Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <template x-for="bike in filteredBikes" :key="bike.id">
+                    <div class="group relative rounded-3xl overflow-hidden border transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col justify-between"
+                         :class="darkMode ? 'bg-slate-800/80 border-slate-700/60 shadow-slate-950/50' : 'bg-white border-slate-200 shadow-slate-200/50'">
+                        
+                        <div>
+                            <!-- Bike Image & Badges -->
+                            <div class="relative h-56 w-full overflow-hidden bg-slate-100 dark:bg-slate-900/50 flex items-center justify-center p-4">
+                                <img :src="bike.image" :alt="bike.name" class="h-full w-full object-contain object-center group-hover:scale-105 transition-transform duration-500">
+                                
+                                <!-- Availability Badge -->
+                                <div class="absolute top-4 left-4">
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md"
+                                          :class="bike.available ? 'bg-emerald-500/90 text-white backdrop-blur-md' : 'bg-rose-500/90 text-white backdrop-blur-md'">
+                                        <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                                        <span x-text="bike.available ? 'Available Now' : 'Reserved'"></span>
+                                    </span>
+                                </div>
+
+                                <!-- Category Tag -->
+                                <div class="absolute top-4 right-4">
+                                    <span class="px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-slate-900/80 text-white backdrop-blur-md" x-text="bike.category"></span>
+                                </div>
+                            </div>
+
+                            <!-- Content -->
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xl font-bold tracking-tight" x-text="bike.name"></h3>
+                                    <div class="flex items-center gap-1 text-amber-400 font-bold text-sm">
+                                        <i data-lucide="star" class="w-4 h-4 fill-amber-400"></i>
+                                        <span x-text="bike.rating"></span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 line-clamp-2" x-text="bike.description"></p>
+
+                                <!-- Tech Specs Grid -->
+                                <div class="grid grid-cols-3 gap-2 py-3 px-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 text-center mb-6 border border-slate-100 dark:border-slate-800">
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400">Range / Spec</span>
+                                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5" x-text="bike.range"></span>
+                                    </div>
+                                    <div class="flex flex-col items-center border-x border-slate-200 dark:border-slate-800">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400">Gears / Speed</span>
+                                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5" x-text="bike.speeds"></span>
+                                    </div>
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400">Frame Size</span>
+                                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5" x-text="bike.frameSize"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer / Pricing & Action -->
+                        <div class="px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+                            <div>
+                                <div class="flex items-baseline gap-1">
+                                    <span class="text-2xl font-black text-brand-600 dark:text-brand-400" x-text="'$' + bike.pricePerHour"></span>
+                                    <span class="text-xs text-slate-400 font-medium">/ hr</span>
+                                </div>
+                                <div class="text-[11px] text-slate-400 font-semibold" x-text="'$' + bike.pricePerDay + ' / full day'"></div>
+                            </div>
+
+                            <button @click="openBookingModal(bike)" 
+                                    :disabled="!bike.available"
+                                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :class="bike.available ? 'bg-slate-900 text-white hover:bg-brand-500 dark:bg-brand-500 dark:hover:bg-brand-600' : 'bg-slate-300 dark:bg-slate-700 text-slate-500'">
+                                <span>Book Now</span>
+                                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <!-- Interactive Hub Locations Map Section -->
+        <section id="locations" class="py-16 bg-slate-100/70 dark:bg-slate-900/40 border-y border-slate-200 dark:border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-2xl mx-auto mb-12">
+                    <h2 class="text-3xl font-black tracking-tight mb-3">Pickup & Dropoff Locations</h2>
+                    <p class="text-slate-600 dark:text-slate-400 text-sm">Pick up your bike at any of our automated smart docks spread conveniently across key city hubs.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+                    <!-- Map Sidebar / Hub list -->
+                    <div class="flex flex-col gap-3">
+                        <template x-for="loc in locations" :key="loc.id">
+                            <div @click="selectMapLocation(loc)" 
+                                 class="p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-4"
+                                 :class="selectedLocation?.id === loc.id ? 'bg-white dark:bg-slate-800 border-brand-500 shadow-lg ring-2 ring-brand-500/20' : 'bg-white/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-800'">
+                                <div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
+                                    <i data-lucide="map-pin" class="w-5 h-5"></i>
+                                </div>
+                                <div class="flex-grow">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="font-bold text-sm" x-text="loc.name"></h4>
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600" x-text="loc.availableBikes + ' bikes ready'"></span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="loc.address"></p>
+                                    <div class="mt-2 text-[11px] font-semibold text-brand-600 dark:text-brand-400 flex items-center gap-1">
+                                        <i data-lucide="clock" class="w-3 h-3"></i> Open 24/7
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Leaflet Interactive Map Container -->
+                    <div class="lg:col-span-2 h-[420px] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-xl relative">
+                        <div id="leafletMap" class="w-full h-full"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Customer Reviews & Ratings -->
+        <section id="reviews" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+                <div>
+                    <span class="text-xs font-bold text-brand-600 dark:text-brand-400 uppercase tracking-widest">Community Feedback</span>
+                    <h2 class="text-3xl font-black tracking-tight mt-1">Rider Experiences</h2>
+                </div>
+
+                <!-- Star Rating Filter -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500">Filter by stars:</span>
+                    <button @click="reviewFilter = 0" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition" :class="reviewFilter === 0 ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-300 dark:border-slate-700'">All</button>
+                    <button @click="reviewFilter = 5" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1" :class="reviewFilter === 5 ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-300 dark:border-slate-700'">5 <i data-lucide="star" class="w-3 h-3 fill-current"></i></button>
+                    <button @click="reviewFilter = 4" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1" :class="reviewFilter === 4 ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-300 dark:border-slate-700'">4 <i data-lucide="star" class="w-3 h-3 fill-current"></i></button>
+                </div>
+            </div>
+
+            <!-- Reviews Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <template x-for="review in filteredReviews" :key="review.id">
+                    <div class="p-6 rounded-3xl border glass-panel flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
+                         :class="darkMode ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <div class="flex items-center gap-1 text-amber-400 mb-4">
+                                <template x-for="i in review.rating">
+                                    <i data-lucide="star" class="w-4 h-4 fill-amber-400"></i>
+                                </template>
+                            </div>
+                            <p class="text-sm italic text-slate-600 dark:text-slate-300 mb-6" x-text="'&ldquo;' + review.comment + '&rdquo;'"></p>
+                        </div>
+
+                        <div class="flex items-center gap-3 pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                            <img :src="review.avatar" :alt="review.author" class="w-10 h-10 rounded-full object-cover">
+                            <div>
+                                <h5 class="text-xs font-bold" x-text="review.author"></h5>
+                                <span class="text-[11px] text-slate-400" x-text="review.date"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq" class="py-16 bg-slate-100/50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-800">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="text-3xl font-black text-center tracking-tight mb-10">Frequently Asked Questions</h2>
+                <div class="space-y-4">
+                    <template x-for="(item, idx) in faqs" :key="idx">
+                        <div class="rounded-2xl border bg-white dark:bg-slate-800 overflow-hidden transition"
+                             :class="darkMode ? 'border-slate-700/60' : 'border-slate-200'">
+                            <button @click="item.open = !item.open" class="w-full p-5 text-left font-bold text-sm flex items-center justify-between gap-4">
+                                <span x-text="item.q"></span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200" :class="item.open ? 'rotate-180' : ''"></i>
+                            </button>
+                            <div x-show="item.open" x-collapse class="px-5 pb-5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                                <p x-text="item.a"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 text-xs py-12"
+            :class="darkMode ? 'border-slate-800' : 'border-slate-200'">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div class="space-y-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center text-white font-bold">
+                        <i data-lucide="bike" class="w-5 h-5"></i>
+                    </div>
+                    <span class="text-lg font-black tracking-tight text-slate-900 dark:text-white">VELOX</span>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400">Next generation eco-friendly city mobility and bicycle rentals.</p>
+            </div>
+            <div>
+                <h6 class="font-bold text-slate-900 dark:text-white mb-3 uppercase tracking-wider text-[11px]">Quick Links</h6>
+                <ul class="space-y-2">
+                    <li><a href="#fleet" class="hover:text-brand-500 transition">Bikes & E-Bikes</a></li>
+                    <li><a href="#locations" class="hover:text-brand-500 transition">Station Locations</a></li>
+                    <li><a href="#reviews" class="hover:text-brand-500 transition">Rider Reviews</a></li>
+                </ul>
+            </div>
+            <div>
+                <h6 class="font-bold text-slate-900 dark:text-white mb-3 uppercase tracking-wider text-[11px]">Support</h6>
+                <ul class="space-y-2">
+                    <li><a href="#" class="hover:text-brand-500 transition">Safety Guidelines</a></li>
+                    <li><a href="#" class="hover:text-brand-500 transition">Insurance Coverage</a></li>
+                    <li><a href="#" class="hover:text-brand-500 transition">Help Center</a></li>
+                </ul>
+            </div>
+            <div>
+                <h6 class="font-bold text-slate-900 dark:text-white mb-3 uppercase tracking-wider text-[11px]">Contact Us</h6>
+                <p>Support Hotline: 1-800-VELOX-NOW</p>
+                <p class="mt-1">Email: support@veloxrentals.com</p>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center text-slate-400">
+            &copy; 2026 Velox Mobility Inc. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Booking Modal -->
+    <div x-show="bookingModalOpen" 
+         class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display: none;">
+        
+        <div class="relative w-full max-w-2xl rounded-3xl shadow-2xl border overflow-hidden p-6 sm:p-8"
+             :class="darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'"
+             @click.away="bookingModalOpen = false">
+            
+            <!-- Modal Close Button -->
+            <button @click="bookingModalOpen = false" class="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Modal Header -->
+            <div class="flex items-center gap-4 mb-6">
+                <img :src="selectedBike?.image" :alt="selectedBike?.name" class="w-20 h-20 object-contain bg-slate-100 dark:bg-slate-800 rounded-2xl p-2">
+                <div>
+                    <span class="text-xs font-bold text-brand-500 uppercase" x-text="selectedBike?.category"></span>
+                    <h3 class="text-2xl font-black" x-text="selectedBike?.name"></h3>
+                    <p class="text-xs text-slate-400" x-text="'Frame Size: ' + selectedBike?.frameSize"></p>
+                </div>
+            </div>
+
+            <!-- Rental Duration & Type Toggle -->
+            <div class="space-y-5">
+                <div class="grid grid-cols-2 gap-3 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+                    <button @click="bookingData.rateType = 'hourly'" 
+                            class="py-2.5 rounded-xl text-xs font-bold transition-all"
+                            :class="bookingData.rateType === 'hourly' ? 'bg-white dark:bg-slate-700 shadow-md text-brand-600 dark:text-brand-400' : 'text-slate-500'">
+                        Hourly Rental ($<span x-text="selectedBike?.pricePerHour"></span>/hr)
+                    </button>
+                    <button @click="bookingData.rateType = 'daily'" 
+                            class="py-2.5 rounded-xl text-xs font-bold transition-all"
+                            :class="bookingData.rateType === 'daily' ? 'bg-white dark:bg-slate-700 shadow-md text-brand-600 dark:text-brand-400' : 'text-slate-500'">
+                        Daily Rental ($<span x-text="selectedBike?.pricePerDay"></span>/day)
+                    </button>
+                </div>
+
+                <!-- Duration Picker -->
+                <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+                    <div>
+                        <span class="text-xs font-bold text-slate-500 block">Duration</span>
+                        <span class="text-lg font-black" x-text="bookingData.duration + ' ' + (bookingData.rateType === 'hourly' ? 'Hours' : 'Days')"></span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button @click="if(bookingData.duration > 1) bookingData.duration--" class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold hover:bg-slate-300 transition flex items-center justify-center">-</button>
+                        <span class="text-base font-bold w-6 text-center" x-text="bookingData.duration"></span>
+                        <button @click="bookingData.duration++" class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold hover:bg-slate-300 transition flex items-center justify-center">+</button>
+                    </div>
+                </div>
+
+                <!-- Add-ons Selection -->
+                <div>
+                    <label class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">Optional Add-ons</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <template x-for="addon in addons" :key="addon.id">
+                            <label class="p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between"
+                                   :class="bookingData.selectedAddons.includes(addon.id) ? 'border-brand-500 bg-brand-500/5 dark:bg-brand-500/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'">
+                                <div class="flex items-center gap-2.5">
+                                    <input type="checkbox" :value="addon.id" x-model="bookingData.selectedAddons" class="rounded text-brand-500 focus:ring-brand-500 w-4 h-4">
+                                    <span class="text-xs font-semibold" x-text="addon.name"></span>
+                                </div>
+                                <span class="text-xs font-bold text-slate-500" x-text="'+$' + addon.price"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Price Summary Breakdown -->
+                <div class="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2 text-xs">
+                    <div class="flex justify-between text-slate-500">
+                        <span>Base Rental Rate</span>
+                        <span class="font-bold text-slate-700 dark:text-slate-300" x-text="'$' + calculateBaseRate().toFixed(2)"></span>
+                    </div>
+                    <div class="flex justify-between text-slate-500">
+                        <span>Selected Add-ons</span>
+                        <span class="font-bold text-slate-700 dark:text-slate-300" x-text="'$' + calculateAddonsTotal().toFixed(2)"></span>
+                    </div>
+                    <div class="flex justify-between text-slate-500">
+                        <span>Service Fee & Tax (10%)</span>
+                        <span class="font-bold text-slate-700 dark:text-slate-300" x-text="'$' + calculateTax().toFixed(2)"></span>
+                    </div>
+                    <div class="flex justify-between text-base font-black border-t border-slate-200 dark:border-slate-800 pt-3">
+                        <span>Total Estimated Price</span>
+                        <span class="text-brand-600 dark:text-brand-400 text-xl" x-text="'$' + calculateGrandTotal().toFixed(2)"></span>
+                    </div>
+                </div>
+
+                <!-- Confirm Action -->
+                <button @click="confirmBooking()" class="w-full py-4 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl shadow-lg shadow-brand-500/30 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i> Confirm Reservation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Bookings / Cart Side Drawer -->
+    <div x-show="cartOpen" 
+         class="fixed inset-0 z-50 overflow-hidden" 
+         style="display: none;">
+        <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity" @click="cartOpen = false"></div>
+
+        <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div class="w-screen max-w-md p-6 flex flex-col justify-between shadow-2xl transition-transform transform"
+                 :class="darkMode ? 'bg-slate-900 text-white border-l border-slate-800' : 'bg-white text-slate-800 border-l border-slate-200'">
+                
+                <div>
+                    <!-- Drawer Header -->
+                    <div class="flex items-center justify-between pb-6 border-b border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="shopping-bag" class="w-5 h-5 text-brand-500"></i>
+                            <h3 class="text-xl font-black">My Active Reservations</h3>
+                        </div>
+                        <button @click="cartOpen = false" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Cart Content -->
+                    <div class="mt-6 space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+                        <template x-if="cart.length === 0">
+                            <div class="text-center py-12 text-slate-400">
+                                <i data-lucide="bike" class="w-12 h-12 mx-auto stroke-1 mb-3 opacity-50"></i>
+                                <p class="text-sm font-semibold">No active bike reservations yet.</p>
+                                <p class="text-xs text-slate-500 mt-1">Select a bike from our fleet to start your journey.</p>
+                            </div>
+                        </template>
+
+                        <template x-for="(item, idx) in cart" :key="idx">
+                            <div class="p-4 rounded-2xl border flex items-center justify-between gap-3 relative overflow-hidden"
+                                 :class="darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'">
+                                <div class="flex items-center gap-3">
+                                    <img :src="item.bike.image" :alt="item.bike.name" class="w-14 h-14 object-contain bg-white dark:bg-slate-900 rounded-xl p-1">
+                                    <div>
+                                        <h4 class="font-bold text-sm" x-text="item.bike.name"></h4>
+                                        <p class="text-xs text-slate-400" x-text="item.duration + ' ' + (item.rateType === 'hourly' ? 'hrs' : 'days') + ' rental'"></p>
+                                        <span class="text-xs font-black text-brand-600 dark:text-brand-400" x-text="'$' + item.totalCost.toFixed(2)"></span>
+                                    </div>
+                                </div>
+                                <button @click="removeFromCart(idx)" class="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Footer Summary inside Drawer -->
+                <div x-show="cart.length > 0" class="pt-6 border-t border-slate-200 dark:border-slate-800">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-bold text-slate-500">Total Booking Value</span>
+                        <span class="text-2xl font-black text-brand-600 dark:text-brand-400" x-text="'$' + calculateCartTotal().toFixed(2)"></span>
+                    </div>
+                    <button @click="checkout()" class="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl shadow-lg shadow-brand-500/30 transition flex items-center justify-center gap-2">
+                        <span>Proceed to Unlock Bikes</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        function bikeApp() {
+            return {
+                darkMode: false,
+                bookingModalOpen: false,
+                cartOpen: false,
+                selectedBike: null,
+                selectedLocation: null,
+                reviewFilter: 0,
+                map: null,
+                markers: [],
+                toasts: [],
+
+                // Search & Filter state
+                searchFilters: {
+                    location: 'all',
+                    startDate: '',
+                    endDate: '',
+                    category: 'All',
+                    onlyAvailable: false
+                },
+
+                // Active Booking Selection State
+                bookingData: {
+                    rateType: 'hourly',
+                    duration: 2,
+                    selectedAddons: []
+                },
+
+                // Add-on Options
+                addons: [
+                    { id: 'helmet', name: 'Safety Helmet', price: 5 },
+                    { id: 'gps', name: 'GPS Navigation Mount', price: 8 },
+                    { id: 'seat', name: 'Child Safety Seat', price: 12 },
+                    { id: 'insurance', name: 'Full Theft Protection', price: 10 }
+                ],
+
+                // Bikes Fleet Data
+                bikes: [
+                    {
+                        id: 1,
+                        name: 'Metro Commuter V2',
+                        category: 'City',
+                        pricePerHour: 8,
+                        pricePerDay: 32,
+                        range: 'Belt Drive',
+                        speeds: '3-Speed Internal',
+                        frameSize: 'Universal',
+                        rating: 4.6,
+                        available: true,
+                        description: 'Low-maintenance city bike featuring anti-puncture tyres and front basket utility.',
+                        image: 'https://images.unsplash.com/photo-1507035895480-2b3156c31fc8?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 2,
+                        name: 'Apex E-Cruiser Pro',
+                        category: 'Electric',
+                        pricePerHour: 14,
+                        pricePerDay: 55,
+                        range: '75 km',
+                        speeds: '9-Speed Auto',
+                        frameSize: 'Medium / L',
+                        rating: 4.9,
+                        available: true,
+                        description: 'Ultra-smooth electric assist bicycle with long-range battery and integrated LCD route display.',
+                        image: 'https://images.unsplash.com/photo-1571068316344-75bc76f77890?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 3,
+                        name: 'TrailBlazer XC-700',
+                        category: 'Mountain',
+                        pricePerHour: 11,
+                        pricePerDay: 42,
+                        range: 'Hardtail',
+                        speeds: '12-Speed SRAM',
+                        frameSize: 'Large',
+                        rating: 4.8,
+                        available: true,
+                        description: 'Rugged hydraulic disc brake mountain bike engineered for rough terrain and forest trails.',
+                        image: 'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 4,
+                        name: 'Veloce Carbon Strada',
+                        category: 'Road',
+                        pricePerHour: 16,
+                        pricePerDay: 65,
+                        range: 'Ultra-light',
+                        speeds: '22-Speed Shimano',
+                        frameSize: '54 cm',
+                        rating: 4.9,
+                        available: true,
+                        description: 'Featherlight full carbon fibre frame built for high speed road touring and performance endurance.',
+                        image: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 5,
+                        name: 'Volt Urban Step-Thru',
+                        category: 'Electric',
+                        pricePerHour: 13,
+                        pricePerDay: 50,
+                        range: '60 km',
+                        speeds: '7-Speed',
+                        frameSize: 'Small / Medium',
+                        rating: 4.7,
+                        available: true,
+                        description: 'Comfortable upright riding posture step-thru e-bike perfect for effortless casual sightseeing.',
+                        image: 'https://images.unsplash.com/photo-1505705694340-019e1e335916?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 6,
+                        name: 'Junior Explorer 24',
+                        category: 'Kids',
+                        pricePerHour: 6,
+                        pricePerDay: 24,
+                        range: 'Lightweight',
+                        speeds: '6-Speed Shimano',
+                        frameSize: '24 inch',
+                        rating: 4.9,
+                        available: true,
+                        description: 'Safe and lightweight junior mountain bike tailored for younger riders ready for weekend family trails.',
+                        image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80'
+                    }
+                ],
+
+                // Hub Locations
+                locations: [
+                    { id: 1, name: 'Central Station Hub', address: '124 Station Plaza, Downtown', lat: 40.7128, lng: -74.0060, availableBikes: 12 },
+                    { id: 2, name: 'Waterfront Park Dock', address: '45 Esplanade Promenade', lat: 40.7060, lng: -74.0088, availableBikes: 8 },
+                    { id: 3, name: 'University Campus South', address: '88 College Avenue', lat: 40.7200, lng: -73.9950, availableBikes: 5 }
+                ],
+
+                // Reviews Data
+                reviews: [
+                    { id: 1, author: 'Marcus Vance', rating: 5, comment: 'Renting the Apex E-Cruiser made exploring the city effortless. Smooth booking experience and great battery life!', date: '2 days ago', avatar: 'https://i.pravatar.cc/100?img=12' },
+                    { id: 2, author: 'Elena Rostova', rating: 5, comment: 'Top tier mountain bikes! We took them out for a weekend mountain trail trip and they performed flawlessly.', date: '1 week ago', avatar: 'https://i.pravatar.cc/100?img=32' },
+                    { id: 3, author: 'David Chen', rating: 4, comment: 'Very convenient pickup docks around the downtown district. Quick unlocking process right from the app.', date: '2 weeks ago', avatar: 'https://i.pravatar.cc/100?img=53' }
+                ],
+
+                // FAQs
+                faqs: [
+                    { q: 'How do I unlock my rented bicycle?', a: 'Once your reservation is confirmed, you will receive a 4-digit digital unlock code in your app drawer to unlock the bike at your chosen dock.', open: false },
+                    { q: 'Is a helmet included in the rental price?', a: 'Helmets can be added to any reservation for a small flat fee during checkout, or you are welcome to bring your own personal helmet.', open: false },
+                    { q: 'What happens if I return the bike late?', a: 'A grace period of 15 minutes is applied automatically. Further delays will be billed at the standard hourly rate.', open: false }
+                ],
+
+                // Saved Cart Reservations
+                cart: [],
+
+                // Filtered Bikes Computed Logic
+                get filteredBikes() {
+                    return this.bikes.filter(b => {
+                        const matchesCategory = this.searchFilters.category === 'All' || b.category === this.searchFilters.category;
+                        const matchesAvailability = !this.searchFilters.onlyAvailable || b.available;
+                        return matchesCategory && matchesAvailability;
+                    });
+                },
+
+                // Filtered Reviews Logic
+                get filteredReviews() {
+                    if (this.reviewFilter === 0) return this.reviews;
+                    return this.reviews.filter(r => r.rating === this.reviewFilter);
+                },
+
+                init() {
+                    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        this.darkMode = true;
+                    }
+                    
+                    this.$nextTick(() => {
+                        lucide.createIcons();
+                        this.initMap();
+                    });
+                },
+
+                toggleTheme() {
+                    this.darkMode = !this.darkMode;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                scrollToCatalog() {
+                    document.getElementById('fleet').scrollIntoView({ behavior: 'smooth' });
+                },
+
+                initMap() {
+                    if (this.map) return;
+                    
+                    this.map = L.map('leafletMap').setView([40.7128, -74.0060], 13);
+                    
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(this.map);
+
+                    this.locations.forEach(loc => {
+                        const marker = L.marker([loc.lat, loc.lng]).addTo(this.map);
+                        marker.bindPopup(`<b>${loc.name}</b><br>${loc.address}<br><b>${loc.availableBikes} bikes available</b>`);
+                        this.markers.push({ id: loc.id, marker: marker });
+                    });
+
+                    this.selectedLocation = this.locations[0];
+                },
+
+                selectMapLocation(loc) {
+                    this.selectedLocation = loc;
+                    if (this.map) {
+                        this.map.flyTo([loc.lat, loc.lng], 15, { duration: 1.2 });
+                        const match = this.markers.find(m => m.id === loc.id);
+                        if (match) match.marker.openPopup();
+                    }
+                },
+
+                openBookingModal(bike) {
+                    this.selectedBike = bike;
+                    this.bookingData = { rateType: 'hourly', duration: 2, selectedAddons: [] };
+                    this.bookingModalOpen = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                calculateBaseRate() {
+                    if (!this.selectedBike) return 0;
+                    const rate = this.bookingData.rateType === 'hourly' ? this.selectedBike.pricePerHour : this.selectedBike.pricePerDay;
+                    return rate * this.bookingData.duration;
+                },
+
+                calculateAddonsTotal() {
+                    return this.bookingData.selectedAddons.reduce((sum, addonId) => {
+                        const item = this.addons.find(a => a.id === addonId);
+                        return sum + (item ? item.price : 0);
+                    }, 0);
+                },
+
+                calculateTax() {
+                    return (this.calculateBaseRate() + this.calculateAddonsTotal()) * 0.10;
+                },
+
+                calculateGrandTotal() {
+                    return this.calculateBaseRate() + this.calculateAddonsTotal() + this.calculateTax();
+                },
+
+                confirmBooking() {
+                    this.cart.push({
+                        bike: this.selectedBike,
+                        duration: this.bookingData.duration,
+                        rateType: this.bookingData.rateType,
+                        addons: [...this.bookingData.selectedAddons],
+                        totalCost: this.calculateGrandTotal()
+                    });
+
+                    this.bookingModalOpen = false;
+                    this.cartOpen = true;
+                    this.showToast('Reservation added to your active rentals!', 'success');
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                removeFromCart(idx) {
+                    this.cart.splice(idx, 1);
+                    this.showToast('Reservation removed.', 'info');
+                },
+
+                calculateCartTotal() {
+                    return this.cart.reduce((sum, item) => sum + item.totalCost, 0);
+                },
+
+                checkout() {
+                    this.showToast('Rental code generated! Unlock instructions sent to your email.', 'success');
+                    this.cart = [];
+                    this.cartOpen = false;
+                },
+
+                showToast(message, type = 'success') {
+                    const toast = { message, type, show: true };
+                    this.toasts.push(toast);
+                    setTimeout(() => {
+                        toast.show = false;
+                    }, 4000);
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            }
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Velox | Premium Bike Rentals & Mobility</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(107, 114, 128, 0.8);
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        
+        /* Leaflet Map Custom Style */
+        .leaflet-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body x-data="bikeApp()" :class="{ 'dark bg-slate-900 text-slate-100': darkMode, 'bg-slate-50 text-slate-800': !darkMode }" class="font-sans antialiased selection:bg-brand-500 selection:text-white min-h-screen flex flex-col justify-between">
+
+    <!-- Notification Toast System -->
+    <div class="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        <template x-for="(toast, index) in toasts" :key="index">
+            <div x-show="toast.show" 
+                 x-transition:enter="transition ease-out duration-300 transform"
+                 x-transition:enter-start="opacity-0 translate-y-2 scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave="transition ease-in duration-200 transform"
+                 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-2 scale-95"
+                 class="pointer-events-auto p-4 rounded-xl shadow-lg border flex items-center justify-between gap-3"
+                 :class="{
+                    'bg-emerald-600 text-white border-emerald-500': toast.type === 'success',
+                    'bg-amber-600 text-white border-amber-500': toast.type === 'info',
+                    'bg-rose-600 text-white border-rose-500': toast.type === 'error'
+                 }">
+                <div class="flex items-center gap-2">
+                    <i :data-lucide="toast.type === 'success' ? 'check-circle' : 'info'" class="w-5 h-5"></i>
+                    <p class="text-sm font-medium" x-text="toast.message"></p>
+                </div>
+                <button @click="toast.show = false" class="opacity-80 hover:opacity-100">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 border-b transition-colors duration-200"
+            :class="darkMode ? 'bg-slate-900/90 border-slate-800 backdrop-blur-md' : 'bg-white/90 border-slate-200 backdrop-blur-md'">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="#" class="flex items-center gap-2.5 group">
+                <div class="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/30 group-hover:scale-105 transition-transform">
+                    <i data-lucide="bike" class="w-6 h-6"></i>
+                </div>
+                <span class="text-2xl font-black tracking-tight bg-gradient-to-r from-brand-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent">VELOX</span>
+            </a>
+
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex items-center gap-8 text-sm font-semibold">
+                <a href="#fleet" class="hover:text-brand-500 transition-colors">Fleet Catalog</a>
+                <a href="#locations" class="hover:text-brand-500 transition-colors">Locations</a>
+                <a href="#reviews" class="hover:text-brand-500 transition-colors">Reviews</a>
+                <a href="#faq" class="hover:text-brand-500 transition-colors">How it Works</a>
+            </nav>
+
+            <!-- Quick Actions -->
+            <div class="flex items-center gap-3">
+                <!-- Theme Toggle -->
+                <button @click="toggleTheme()" class="p-2.5 rounded-xl border transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                        :class="darkMode ? 'border-slate-700 text-amber-400' : 'border-slate-200 text-slate-600'">
+                    <i :data-lucide="darkMode ? 'sun' : 'moon'" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Active Bookings / Cart Drawer Button -->
+                <button @click="cartOpen = true" class="relative p-2.5 rounded-xl bg-brand-500 text-white font-medium hover:bg-brand-600 shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2">
+                    <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                    <span class="hidden sm:inline text-sm font-semibold">My Rentals</span>
+                    <span x-show="cart.length > 0" 
+                          x-text="cart.length" 
+                          class="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse">
+                    </span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow">
+        <!-- Hero Section with Booking Search Bar -->
+        <section class="relative pt-12 pb-20 md:pt-20 md:pb-32 overflow-hidden">
+            <!-- Ambient Background Shapes -->
+            <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div class="text-center max-w-3xl mx-auto mb-10">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-brand-500/10 text-brand-600 dark:text-brand-400 mb-4 border border-brand-500/20">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Sustainable Urban Mobility
+                    </span>
+                    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
+                        Explore the City on <span class="bg-gradient-to-r from-brand-500 to-teal-500 bg-clip-text text-transparent">Two Wheels</span>
+                    </h1>
+                    <p class="text-lg text-slate-600 dark:text-slate-400">
+                        Rent premium e-bikes, road bikes, mountain bikes, city cruisers and kids bicycles in seconds. No hidden fees, instant unlock, and full insurance included.
+                    </p>
+                </div>
+
+                <!-- Hero Search Widget -->
+                <div class="max-w-5xl mx-auto glass-panel p-4 sm:p-6 rounded-3xl shadow-2xl border"
+                     :class="darkMode ? 'border-slate-700/60' : 'border-slate-200/80'">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Location Dropdown -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-brand-500"></i> Pickup Hub
+                            </label>
+                            <select x-model="searchFilters.location" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-3 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="all">All Locations</option>
+                                <template x-for="loc in locations" :key="loc.id">
+                                    <option :value="loc.name" x-text="loc.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <!-- Start Date -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-500"></i> Start Date
+                            </label>
+                            <input type="datetime-local" x-model="searchFilters.startDate" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+
+                        <!-- End Date -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-500"></i> Return Date
+                            </label>
+                            <input type="datetime-local" x-model="searchFilters.endDate" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+
+                        <!-- Category Filter -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <i data-lucide="layers" class="w-3.5 h-3.5 text-brand-500"></i> Bike Category
+                            </label>
+                            <select x-model="searchFilters.category" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3.5 py-3 text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="All">All Categories</option>
+                                <option value="Electric">Electric / E-Bike</option>
+                                <option value="Mountain">Mountain Bike</option>
+                                <option value="Road">Road Performance</option>
+                                <option value="City">City / Urban</option>
+                                <option value="Kids">Kids / Junior</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Filter Trigger & Quick Action -->
+                    <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                        <div class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full text-xs font-semibold">
+                            <span class="text-slate-400">Popular Tag:</span>
+                            <button @click="searchFilters.category = 'Electric'" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-500/10 hover:text-brand-500 transition">⚡ Electric Range</button>
+                            <button @click="searchFilters.category = 'Mountain'" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-500/10 hover:text-brand-500 transition">🌲 Mountain Trails</button>
+                            <button @click="searchFilters.category = 'Kids'" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-500/10 hover:text-brand-500 transition">🧸 Kids & Family</button>
+                        </div>
+                        <button @click="scrollToCatalog()" class="w-full sm:w-auto px-8 py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="search" class="w-4 h-4"></i> Find Available Bikes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Fleet Catalog Section -->
+        <section id="fleet" class="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+                <div>
+                    <h2 class="text-3xl font-black tracking-tight mb-2">Our Premium Fleet</h2>
+                    <p class="text-slate-600 dark:text-slate-400 text-sm">Choose from high-performance city, mountain, electric, road, and junior bicycles, meticulously maintained daily.</p>
+                </div>
+
+                <!-- Category Tabs & Quick Toggles -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <!-- Advanced Filters Toggle -->
+                    <div class="flex items-center gap-2 bg-slate-200/60 dark:bg-slate-800/80 px-4 py-2 rounded-2xl text-xs font-semibold">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" x-model="searchFilters.onlyAvailable" class="rounded text-brand-500 focus:ring-brand-500">
+                            <span>Only Available Now</span>
+                        </label>
+                    </div>
+
+                    <!-- Category Tabs -->
+                    <div class="flex items-center gap-1.5 p-1.5 bg-slate-200/60 dark:bg-slate-800/80 rounded-2xl overflow-x-auto">
+                        <template x-for="cat in ['All', 'City', 'Mountain', 'Electric', 'Road', 'Kids']" :key="cat">
+                            <button @click="searchFilters.category = cat" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+                                    :class="searchFilters.category === cat ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
+                                <span x-text="cat === 'Electric' ? 'E-Bike' : cat"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bike Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <template x-for="bike in filteredBikes" :key="bike.id">
+                    <div class="group relative rounded-3xl overflow-hidden border transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col justify-between"
+                         :class="darkMode ? 'bg-slate-800/80 border-slate-700/60 shadow-slate-950/50' : 'bg-white border-slate-200 shadow-slate-200/50'">
+                        
+                        <div>
+                            <!-- Bike Image & Badges -->
+                            <div class="relative h-56 w-full overflow-hidden bg-slate-100 dark:bg-slate-900/50 flex items-center justify-center p-4">
+                                <img :src="bike.image" :alt="bike.name" class="h-full w-full object-contain object-center group-hover:scale-105 transition-transform duration-500">
+                                
+                                <!-- Availability Badge -->
+                                <div class="absolute top-4 left-4">
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md"
+                                          :class="bike.available ? 'bg-emerald-500/90 text-white backdrop-blur-md' : 'bg-rose-500/90 text-white backdrop-blur-md'">
+                                        <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                                        <span x-text="bike.available ? 'Available Now' : 'Reserved'"></span>
+                                    </span>
+                                </div>
+
+                                <!-- Category Tag -->
+                                <div class="absolute top-4 right-4">
+                                    <span class="px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-slate-900/80 text-white backdrop-blur-md" x-text="bike.category"></span>
+                                </div>
+                            </div>
+
+                            <!-- Content -->
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xl font-bold tracking-tight" x-text="bike.name"></h3>
+                                    <div class="flex items-center gap-1 text-amber-400 font-bold text-sm">
+                                        <i data-lucide="star" class="w-4 h-4 fill-amber-400"></i>
+                                        <span x-text="bike.rating"></span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 line-clamp-2" x-text="bike.description"></p>
+
+                                <!-- Tech Specs Grid -->
+                                <div class="grid grid-cols-3 gap-2 py-3 px-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 text-center mb-6 border border-slate-100 dark:border-slate-800">
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400">Range / Spec</span>
+                                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5" x-text="bike.range"></span>
+                                    </div>
+                                    <div class="flex flex-col items-center border-x border-slate-200 dark:border-slate-800">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400">Gears / Speed</span>
+                                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5" x-text="bike.speeds"></span>
+                                    </div>
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400">Frame Size</span>
+                                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5" x-text="bike.frameSize"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer / Pricing & Action -->
+                        <div class="px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+                            <div>
+                                <div class="flex items-baseline gap-1">
+                                    <span class="text-2xl font-black text-brand-600 dark:text-brand-400" x-text="'$' + bike.pricePerHour"></span>
+                                    <span class="text-xs text-slate-400 font-medium">/ hr</span>
+                                </div>
+                                <div class="text-[11px] text-slate-400 font-semibold" x-text="'$' + bike.pricePerDay + ' / full day'"></div>
+                            </div>
+
+                            <button @click="openBookingModal(bike)" 
+                                    :disabled="!bike.available"
+                                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :class="bike.available ? 'bg-slate-900 text-white hover:bg-brand-500 dark:bg-brand-500 dark:hover:bg-brand-600' : 'bg-slate-300 dark:bg-slate-700 text-slate-500'">
+                                <span>Book Now</span>
+                                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <!-- Interactive Hub Locations Map Section -->
+        <section id="locations" class="py-16 bg-slate-100/70 dark:bg-slate-900/40 border-y border-slate-200 dark:border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-2xl mx-auto mb-12">
+                    <h2 class="text-3xl font-black tracking-tight mb-3">Pickup & Dropoff Locations</h2>
+                    <p class="text-slate-600 dark:text-slate-400 text-sm">Pick up your bike at any of our automated smart docks spread conveniently across key city hubs.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+                    <!-- Map Sidebar / Hub list -->
+                    <div class="flex flex-col gap-3">
+                        <template x-for="loc in locations" :key="loc.id">
+                            <div @click="selectMapLocation(loc)" 
+                                 class="p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-4"
+                                 :class="selectedLocation?.id === loc.id ? 'bg-white dark:bg-slate-800 border-brand-500 shadow-lg ring-2 ring-brand-500/20' : 'bg-white/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-800'">
+                                <div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
+                                    <i data-lucide="map-pin" class="w-5 h-5"></i>
+                                </div>
+                                <div class="flex-grow">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="font-bold text-sm" x-text="loc.name"></h4>
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600" x-text="loc.availableBikes + ' bikes ready'"></span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="loc.address"></p>
+                                    <div class="mt-2 text-[11px] font-semibold text-brand-600 dark:text-brand-400 flex items-center gap-1">
+                                        <i data-lucide="clock" class="w-3 h-3"></i> Open 24/7
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Leaflet Interactive Map Container -->
+                    <div class="lg:col-span-2 h-[420px] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-xl relative">
+                        <div id="leafletMap" class="w-full h-full"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Customer Reviews & Ratings -->
+        <section id="reviews" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+                <div>
+                    <span class="text-xs font-bold text-brand-600 dark:text-brand-400 uppercase tracking-widest">Community Feedback</span>
+                    <h2 class="text-3xl font-black tracking-tight mt-1">Rider Experiences</h2>
+                </div>
+
+                <!-- Star Rating Filter -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500">Filter by stars:</span>
+                    <button @click="reviewFilter = 0" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition" :class="reviewFilter === 0 ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-300 dark:border-slate-700'">All</button>
+                    <button @click="reviewFilter = 5" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1" :class="reviewFilter === 5 ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-300 dark:border-slate-700'">5 <i data-lucide="star" class="w-3 h-3 fill-current"></i></button>
+                    <button @click="reviewFilter = 4" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1" :class="reviewFilter === 4 ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-300 dark:border-slate-700'">4 <i data-lucide="star" class="w-3 h-3 fill-current"></i></button>
+                </div>
+            </div>
+
+            <!-- Reviews Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <template x-for="review in filteredReviews" :key="review.id">
+                    <div class="p-6 rounded-3xl border glass-panel flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
+                         :class="darkMode ? 'border-slate-800' : 'border-slate-200'">
+                        <div>
+                            <div class="flex items-center gap-1 text-amber-400 mb-4">
+                                <template x-for="i in review.rating">
+                                    <i data-lucide="star" class="w-4 h-4 fill-amber-400"></i>
+                                </template>
+                            </div>
+                            <p class="text-sm italic text-slate-600 dark:text-slate-300 mb-6" x-text="'&ldquo;' + review.comment + '&rdquo;'"></p>
+                        </div>
+
+                        <div class="flex items-center gap-3 pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                            <img :src="review.avatar" :alt="review.author" class="w-10 h-10 rounded-full object-cover">
+                            <div>
+                                <h5 class="text-xs font-bold" x-text="review.author"></h5>
+                                <span class="text-[11px] text-slate-400" x-text="review.date"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq" class="py-16 bg-slate-100/50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-800">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="text-3xl font-black text-center tracking-tight mb-10">Frequently Asked Questions</h2>
+                <div class="space-y-4">
+                    <template x-for="(item, idx) in faqs" :key="idx">
+                        <div class="rounded-2xl border bg-white dark:bg-slate-800 overflow-hidden transition"
+                             :class="darkMode ? 'border-slate-700/60' : 'border-slate-200'">
+                            <button @click="item.open = !item.open" class="w-full p-5 text-left font-bold text-sm flex items-center justify-between gap-4">
+                                <span x-text="item.q"></span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200" :class="item.open ? 'rotate-180' : ''"></i>
+                            </button>
+                            <div x-show="item.open" x-collapse class="px-5 pb-5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                                <p x-text="item.a"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 text-xs py-12"
+            :class="darkMode ? 'border-slate-800' : 'border-slate-200'">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div class="space-y-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center text-white font-bold">
+                        <i data-lucide="bike" class="w-5 h-5"></i>
+                    </div>
+                    <span class="text-lg font-black tracking-tight text-slate-900 dark:text-white">VELOX</span>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400">Next generation eco-friendly city mobility and bicycle rentals.</p>
+            </div>
+            <div>
+                <h6 class="font-bold text-slate-900 dark:text-white mb-3 uppercase tracking-wider text-[11px]">Quick Links</h6>
+                <ul class="space-y-2">
+                    <li><a href="#fleet" class="hover:text-brand-500 transition">Bikes & E-Bikes</a></li>
+                    <li><a href="#locations" class="hover:text-brand-500 transition">Station Locations</a></li>
+                    <li><a href="#reviews" class="hover:text-brand-500 transition">Rider Reviews</a></li>
+                </ul>
+            </div>
+            <div>
+                <h6 class="font-bold text-slate-900 dark:text-white mb-3 uppercase tracking-wider text-[11px]">Support</h6>
+                <ul class="space-y-2">
+                    <li><a href="#" class="hover:text-brand-500 transition">Safety Guidelines</a></li>
+                    <li><a href="#" class="hover:text-brand-500 transition">Insurance Coverage</a></li>
+                    <li><a href="#" class="hover:text-brand-500 transition">Help Center</a></li>
+                </ul>
+            </div>
+            <div>
+                <h6 class="font-bold text-slate-900 dark:text-white mb-3 uppercase tracking-wider text-[11px]">Contact Us</h6>
+                <p>Support Hotline: 1-800-VELOX-NOW</p>
+                <p class="mt-1">Email: support@veloxrentals.com</p>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center text-slate-400">
+            &copy; 2026 Velox Mobility Inc. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Booking Modal -->
+    <div x-show="bookingModalOpen" 
+         class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display: none;">
+        
+        <div class="relative w-full max-w-2xl rounded-3xl shadow-2xl border overflow-hidden p-6 sm:p-8"
+             :class="darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'"
+             @click.away="bookingModalOpen = false">
+            
+            <!-- Modal Close Button -->
+            <button @click="bookingModalOpen = false" class="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Modal Header -->
+            <div class="flex items-center gap-4 mb-6">
+                <img :src="selectedBike?.image" :alt="selectedBike?.name" class="w-20 h-20 object-contain bg-slate-100 dark:bg-slate-800 rounded-2xl p-2">
+                <div>
+                    <span class="text-xs font-bold text-brand-500 uppercase" x-text="selectedBike?.category"></span>
+                    <h3 class="text-2xl font-black" x-text="selectedBike?.name"></h3>
+                    <p class="text-xs text-slate-400" x-text="'Frame Size: ' + selectedBike?.frameSize"></p>
+                </div>
+            </div>
+
+            <!-- Rental Duration & Type Toggle -->
+            <div class="space-y-5">
+                <div class="grid grid-cols-2 gap-3 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+                    <button @click="bookingData.rateType = 'hourly'" 
+                            class="py-2.5 rounded-xl text-xs font-bold transition-all"
+                            :class="bookingData.rateType === 'hourly' ? 'bg-white dark:bg-slate-700 shadow-md text-brand-600 dark:text-brand-400' : 'text-slate-500'">
+                        Hourly Rental ($<span x-text="selectedBike?.pricePerHour"></span>/hr)
+                    </button>
+                    <button @click="bookingData.rateType = 'daily'" 
+                            class="py-2.5 rounded-xl text-xs font-bold transition-all"
+                            :class="bookingData.rateType === 'daily' ? 'bg-white dark:bg-slate-700 shadow-md text-brand-600 dark:text-brand-400' : 'text-slate-500'">
+                        Daily Rental ($<span x-text="selectedBike?.pricePerDay"></span>/day)
+                    </button>
+                </div>
+
+                <!-- Duration Picker -->
+                <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+                    <div>
+                        <span class="text-xs font-bold text-slate-500 block">Duration</span>
+                        <span class="text-lg font-black" x-text="bookingData.duration + ' ' + (bookingData.rateType === 'hourly' ? 'Hours' : 'Days')"></span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button @click="if(bookingData.duration > 1) bookingData.duration--" class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold hover:bg-slate-300 transition flex items-center justify-center">-</button>
+                        <span class="text-base font-bold w-6 text-center" x-text="bookingData.duration"></span>
+                        <button @click="bookingData.duration++" class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold hover:bg-slate-300 transition flex items-center justify-center">+</button>
+                    </div>
+                </div>
+
+                <!-- Add-ons Selection -->
+                <div>
+                    <label class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">Optional Add-ons</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <template x-for="addon in addons" :key="addon.id">
+                            <label class="p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between"
+                                   :class="bookingData.selectedAddons.includes(addon.id) ? 'border-brand-500 bg-brand-500/5 dark:bg-brand-500/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'">
+                                <div class="flex items-center gap-2.5">
+                                    <input type="checkbox" :value="addon.id" x-model="bookingData.selectedAddons" class="rounded text-brand-500 focus:ring-brand-500 w-4 h-4">
+                                    <span class="text-xs font-semibold" x-text="addon.name"></span>
+                                </div>
+                                <span class="text-xs font-bold text-slate-500" x-text="'+$' + addon.price"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Price Summary Breakdown -->
+                <div class="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2 text-xs">
+                    <div class="flex justify-between text-slate-500">
+                        <span>Base Rental Rate</span>
+                        <span class="font-bold text-slate-700 dark:text-slate-300" x-text="'$' + calculateBaseRate().toFixed(2)"></span>
+                    </div>
+                    <div class="flex justify-between text-slate-500">
+                        <span>Selected Add-ons</span>
+                        <span class="font-bold text-slate-700 dark:text-slate-300" x-text="'$' + calculateAddonsTotal().toFixed(2)"></span>
+                    </div>
+                    <div class="flex justify-between text-slate-500">
+                        <span>Service Fee & Tax (10%)</span>
+                        <span class="font-bold text-slate-700 dark:text-slate-300" x-text="'$' + calculateTax().toFixed(2)"></span>
+                    </div>
+                    <div class="flex justify-between text-base font-black border-t border-slate-200 dark:border-slate-800 pt-3">
+                        <span>Total Estimated Price</span>
+                        <span class="text-brand-600 dark:text-brand-400 text-xl" x-text="'$' + calculateGrandTotal().toFixed(2)"></span>
+                    </div>
+                </div>
+
+                <!-- Confirm Action -->
+                <button @click="confirmBooking()" class="w-full py-4 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl shadow-lg shadow-brand-500/30 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i> Confirm Reservation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Bookings / Cart Side Drawer -->
+    <div x-show="cartOpen" 
+         class="fixed inset-0 z-50 overflow-hidden" 
+         style="display: none;">
+        <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity" @click="cartOpen = false"></div>
+
+        <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div class="w-screen max-w-md p-6 flex flex-col justify-between shadow-2xl transition-transform transform"
+                 :class="darkMode ? 'bg-slate-900 text-white border-l border-slate-800' : 'bg-white text-slate-800 border-l border-slate-200'">
+                
+                <div>
+                    <!-- Drawer Header -->
+                    <div class="flex items-center justify-between pb-6 border-b border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="shopping-bag" class="w-5 h-5 text-brand-500"></i>
+                            <h3 class="text-xl font-black">My Active Reservations</h3>
+                        </div>
+                        <button @click="cartOpen = false" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Cart Content -->
+                    <div class="mt-6 space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+                        <template x-if="cart.length === 0">
+                            <div class="text-center py-12 text-slate-400">
+                                <i data-lucide="bike" class="w-12 h-12 mx-auto stroke-1 mb-3 opacity-50"></i>
+                                <p class="text-sm font-semibold">No active bike reservations yet.</p>
+                                <p class="text-xs text-slate-500 mt-1">Select a bike from our fleet to start your journey.</p>
+                            </div>
+                        </template>
+
+                        <template x-for="(item, idx) in cart" :key="idx">
+                            <div class="p-4 rounded-2xl border flex items-center justify-between gap-3 relative overflow-hidden"
+                                 :class="darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'">
+                                <div class="flex items-center gap-3">
+                                    <img :src="item.bike.image" :alt="item.bike.name" class="w-14 h-14 object-contain bg-white dark:bg-slate-900 rounded-xl p-1">
+                                    <div>
+                                        <h4 class="font-bold text-sm" x-text="item.bike.name"></h4>
+                                        <p class="text-xs text-slate-400" x-text="item.duration + ' ' + (item.rateType === 'hourly' ? 'hrs' : 'days') + ' rental'"></p>
+                                        <span class="text-xs font-black text-brand-600 dark:text-brand-400" x-text="'$' + item.totalCost.toFixed(2)"></span>
+                                    </div>
+                                </div>
+                                <button @click="removeFromCart(idx)" class="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Footer Summary inside Drawer -->
+                <div x-show="cart.length > 0" class="pt-6 border-t border-slate-200 dark:border-slate-800">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-bold text-slate-500">Total Booking Value</span>
+                        <span class="text-2xl font-black text-brand-600 dark:text-brand-400" x-text="'$' + calculateCartTotal().toFixed(2)"></span>
+                    </div>
+                    <button @click="checkout()" class="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl shadow-lg shadow-brand-500/30 transition flex items-center justify-center gap-2">
+                        <span>Proceed to Unlock Bikes</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        function bikeApp() {
+            return {
+                darkMode: false,
+                bookingModalOpen: false,
+                cartOpen: false,
+                selectedBike: null,
+                selectedLocation: null,
+                reviewFilter: 0,
+                map: null,
+                markers: [],
+                toasts: [],
+
+                // Search & Filter state
+                searchFilters: {
+                    location: 'all',
+                    startDate: '',
+                    endDate: '',
+                    category: 'All',
+                    onlyAvailable: false
+                },
+
+                // Active Booking Selection State
+                bookingData: {
+                    rateType: 'hourly',
+                    duration: 2,
+                    selectedAddons: []
+                },
+
+                // Add-on Options
+                addons: [
+                    { id: 'helmet', name: 'Safety Helmet', price: 5 },
+                    { id: 'gps', name: 'GPS Navigation Mount', price: 8 },
+                    { id: 'seat', name: 'Child Safety Seat', price: 12 },
+                    { id: 'insurance', name: 'Full Theft Protection', price: 10 }
+                ],
+
+                // Bikes Fleet Data
+                bikes: [
+                    {
+                        id: 1,
+                        name: 'Metro Commuter V2',
+                        category: 'City',
+                        pricePerHour: 8,
+                        pricePerDay: 32,
+                        range: 'Belt Drive',
+                        speeds: '3-Speed Internal',
+                        frameSize: 'Universal',
+                        rating: 4.6,
+                        available: true,
+                        description: 'Low-maintenance city bike featuring anti-puncture tyres and front basket utility.',
+                        image: 'https://images.unsplash.com/photo-1507035895480-2b3156c31fc8?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 2,
+                        name: 'Apex E-Cruiser Pro',
+                        category: 'Electric',
+                        pricePerHour: 14,
+                        pricePerDay: 55,
+                        range: '75 km',
+                        speeds: '9-Speed Auto',
+                        frameSize: 'Medium / L',
+                        rating: 4.9,
+                        available: true,
+                        description: 'Ultra-smooth electric assist bicycle with long-range battery and integrated LCD route display.',
+                        image: 'https://images.unsplash.com/photo-1571068316344-75bc76f77890?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 3,
+                        name: 'TrailBlazer XC-700',
+                        category: 'Mountain',
+                        pricePerHour: 11,
+                        pricePerDay: 42,
+                        range: 'Hardtail',
+                        speeds: '12-Speed SRAM',
+                        frameSize: 'Large',
+                        rating: 4.8,
+                        available: true,
+                        description: 'Rugged hydraulic disc brake mountain bike engineered for rough terrain and forest trails.',
+                        image: 'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 4,
+                        name: 'Veloce Carbon Strada',
+                        category: 'Road',
+                        pricePerHour: 16,
+                        pricePerDay: 65,
+                        range: 'Ultra-light',
+                        speeds: '22-Speed Shimano',
+                        frameSize: '54 cm',
+                        rating: 4.9,
+                        available: true,
+                        description: 'Featherlight full carbon fibre frame built for high speed road touring and performance endurance.',
+                        image: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 5,
+                        name: 'Volt Urban Step-Thru',
+                        category: 'Electric',
+                        pricePerHour: 13,
+                        pricePerDay: 50,
+                        range: '60 km',
+                        speeds: '7-Speed',
+                        frameSize: 'Small / Medium',
+                        rating: 4.7,
+                        available: true,
+                        description: 'Comfortable upright riding posture step-thru e-bike perfect for effortless casual sightseeing.',
+                        image: 'https://images.unsplash.com/photo-1505705694340-019e1e335916?auto=format&fit=crop&w=600&q=80'
+                    },
+                    {
+                        id: 6,
+                        name: 'Junior Explorer 24',
+                        category: 'Kids',
+                        pricePerHour: 6,
+                        pricePerDay: 24,
+                        range: 'Lightweight',
+                        speeds: '6-Speed Shimano',
+                        frameSize: '24 inch',
+                        rating: 4.9,
+                        available: true,
+                        description: 'Safe and lightweight junior mountain bike tailored for younger riders ready for weekend family trails.',
+                        image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80'
+                    }
+                ],
+
+                // Hub Locations
+                locations: [
+                    { id: 1, name: 'Central Station Hub', address: '124 Station Plaza, Downtown', lat: 40.7128, lng: -74.0060, availableBikes: 12 },
+                    { id: 2, name: 'Waterfront Park Dock', address: '45 Esplanade Promenade', lat: 40.7060, lng: -74.0088, availableBikes: 8 },
+                    { id: 3, name: 'University Campus South', address: '88 College Avenue', lat: 40.7200, lng: -73.9950, availableBikes: 5 }
+                ],
+
+                // Reviews Data
+                reviews: [
+                    { id: 1, author: 'Marcus Vance', rating: 5, comment: 'Renting the Apex E-Cruiser made exploring the city effortless. Smooth booking experience and great battery life!', date: '2 days ago', avatar: 'https://i.pravatar.cc/100?img=12' },
+                    { id: 2, author: 'Elena Rostova', rating: 5, comment: 'Top tier mountain bikes! We took them out for a weekend mountain trail trip and they performed flawlessly.', date: '1 week ago', avatar: 'https://i.pravatar.cc/100?img=32' },
+                    { id: 3, author: 'David Chen', rating: 4, comment: 'Very convenient pickup docks around the downtown district. Quick unlocking process right from the app.', date: '2 weeks ago', avatar: 'https://i.pravatar.cc/100?img=53' }
+                ],
+
+                // FAQs
+                faqs: [
+                    { q: 'How do I unlock my rented bicycle?', a: 'Once your reservation is confirmed, you will receive a 4-digit digital unlock code in your app drawer to unlock the bike at your chosen dock.', open: false },
+                    { q: 'Is a helmet included in the rental price?', a: 'Helmets can be added to any reservation for a small flat fee during checkout, or you are welcome to bring your own personal helmet.', open: false },
+                    { q: 'What happens if I return the bike late?', a: 'A grace period of 15 minutes is applied automatically. Further delays will be billed at the standard hourly rate.', open: false }
+                ],
+
+                // Saved Cart Reservations
+                cart: [],
+
+                // Filtered Bikes Computed Logic
+                get filteredBikes() {
+                    return this.bikes.filter(b => {
+                        const matchesCategory = this.searchFilters.category === 'All' || b.category === this.searchFilters.category;
+                        const matchesAvailability = !this.searchFilters.onlyAvailable || b.available;
+                        return matchesCategory && matchesAvailability;
+                    });
+                },
+
+                // Filtered Reviews Logic
+                get filteredReviews() {
+                    if (this.reviewFilter === 0) return this.reviews;
+                    return this.reviews.filter(r => r.rating === this.reviewFilter);
+                },
+
+                init() {
+                    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        this.darkMode = true;
+                    }
+                    
+                    this.$nextTick(() => {
+                        lucide.createIcons();
+                        this.initMap();
+                    });
+                },
+
+                toggleTheme() {
+                    this.darkMode = !this.darkMode;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                scrollToCatalog() {
+                    document.getElementById('fleet').scrollIntoView({ behavior: 'smooth' });
+                },
+
+                initMap() {
+                    if (this.map) return;
+                    
+                    this.map = L.map('leafletMap').setView([40.7128, -74.0060], 13);
+                    
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(this.map);
+
+                    this.locations.forEach(loc => {
+                        const marker = L.marker([loc.lat, loc.lng]).addTo(this.map);
+                        marker.bindPopup(`<b>${loc.name}</b><br>${loc.address}<br><b>${loc.availableBikes} bikes available</b>`);
+                        this.markers.push({ id: loc.id, marker: marker });
+                    });
+
+                    this.selectedLocation = this.locations[0];
+                },
+
+                selectMapLocation(loc) {
+                    this.selectedLocation = loc;
+                    if (this.map) {
+                        this.map.flyTo([loc.lat, loc.lng], 15, { duration: 1.2 });
+                        const match = this.markers.find(m => m.id === loc.id);
+                        if (match) match.marker.openPopup();
+                    }
+                },
+
+                openBookingModal(bike) {
+                    this.selectedBike = bike;
+                    this.bookingData = { rateType: 'hourly', duration: 2, selectedAddons: [] };
+                    this.bookingModalOpen = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                calculateBaseRate() {
+                    if (!this.selectedBike) return 0;
+                    const rate = this.bookingData.rateType === 'hourly' ? this.selectedBike.pricePerHour : this.selectedBike.pricePerDay;
+                    return rate * this.bookingData.duration;
+                },
+
+                calculateAddonsTotal() {
+                    return this.bookingData.selectedAddons.reduce((sum, addonId) => {
+                        const item = this.addons.find(a => a.id === addonId);
+                        return sum + (item ? item.price : 0);
+                    }, 0);
+                },
+
+                calculateTax() {
+                    return (this.calculateBaseRate() + this.calculateAddonsTotal()) * 0.10;
+                },
+
+                calculateGrandTotal() {
+                    return this.calculateBaseRate() + this.calculateAddonsTotal() + this.calculateTax();
+                },
+
+                confirmBooking() {
+                    this.cart.push({
+                        bike: this.selectedBike,
+                        duration: this.bookingData.duration,
+                        rateType: this.bookingData.rateType,
+                        addons: [...this.bookingData.selectedAddons],
+                        totalCost: this.calculateGrandTotal()
+                    });
+
+                    this.bookingModalOpen = false;
+                    this.cartOpen = true;
+                    this.showToast('Reservation added to your active rentals!', 'success');
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                removeFromCart(idx) {
+                    this.cart.splice(idx, 1);
+                    this.showToast('Reservation removed.', 'info');
+                },
+
+                calculateCartTotal() {
+                    return this.cart.reduce((sum, item) => sum + item.totalCost, 0);
+                },
+
+                checkout() {
+                    this.showToast('Rental code generated! Unlock instructions sent to your email.', 'success');
+                    this.cart = [];
+                    this.cartOpen = false;
+                },
+
+                showToast(message, type = 'success') {
+                    const toast = { message, type, show: true };
+                    this.toasts.push(toast);
+                    setTimeout(() => {
+                        toast.show = false;
+                    }, 4000);
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
