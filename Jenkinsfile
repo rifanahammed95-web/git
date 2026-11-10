@@ -20,7 +20,7 @@ includes: 'git/**'
 }
 stage('deploy') {
 agent {
-label 'deplynode'
+label 'deploynode'
 }
 steps {
 deleteDir()
