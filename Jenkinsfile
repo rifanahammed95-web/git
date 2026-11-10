@@ -1,7 +1,8 @@
 pipeline{
  agent none 
 
- stages('build') {
+ stages{
+  stage('build') {
    agent {
      label 'buildnode'
    }
